@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1e40af">
-    <title>💰 Мои Финансы v1.1</title>
+    <title>💰 Мои Финансы v1.2</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -147,13 +147,56 @@
         .debt-card-lent {
             background: linear-gradient(135deg, #10b981 0%, #059669 100%);
         }
+        
+        .input-field {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+            -webkit-touch-callout: auto !important;
+            -webkit-user-select: auto !important;
+            user-select: auto !important;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .number-input {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .quick-amount {
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        
+        .quick-amount:active {
+            background: #e5e7eb;
+            transform: scale(0.95);
+        }
+        
+        .quick-amount.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useCallback, memo } = React;
 
         const INITIAL_CATEGORIES = [
             {
@@ -235,6 +278,403 @@
             { id: 'card1', name: 'Карта 1', icon: '💳', balance: 0, color: '#8b5cf6' }
         ];
 
+        const QUICK_AMOUNTS = [100, 500, 1000, 2000, 5000, 10000];
+
+        const TransactionModal = memo(({ 
+            isOpen, 
+            onClose, 
+            categories, 
+            accounts, 
+            transactionType,
+            onAddTransaction 
+        }) => {
+            const [form, setForm] = useState({
+                amount: '',
+                category: '',
+                subcategory: '',
+                account: '',
+                toAccount: '',
+                note: '',
+                date: new Date().toISOString().split('T')[0]
+            });
+            
+            const [localAmount, setLocalAmount] = useState('');
+
+            useEffect(() => {
+                if (isOpen) {
+                    setLocalAmount('');
+                    setForm({
+                        amount: '',
+                        category: '',
+                        subcategory: '',
+                        account: '',
+                        toAccount: '',
+                        note: '',
+                        date: new Date().toISOString().split('T')[0]
+                    });
+                }
+            }, [isOpen]);
+
+            const handleAmountChange = useCallback((value) => {
+                setLocalAmount(value);
+                setForm(prev => ({ ...prev, amount: value }));
+            }, []);
+
+            const handleQuickAmount = useCallback((amount) => {
+                const newAmount = localAmount ? (parseFloat(localAmount) || 0) + amount : amount;
+                setLocalAmount(newAmount.toString());
+                setForm(prev => ({ ...prev, amount: newAmount.toString() }));
+            }, [localAmount]);
+
+            const handleSubmit = useCallback(() => {
+                if (!form.amount || parseFloat(form.amount) <= 0) {
+                    alert('Укажите сумму');
+                    return;
+                }
+
+                if (transactionType !== 'transfer' && !form.category) {
+                    alert('Выберите категорию');
+                    return;
+                }
+
+                if (!form.account) {
+                    alert('Выберите счёт');
+                    return;
+                }
+
+                if (transactionType === 'transfer' && !form.toAccount) {
+                    alert('Выберите счёт получателя');
+                    return;
+                }
+
+                if (transactionType === 'transfer' && form.account === form.toAccount) {
+                    alert('Выберите разные счета');
+                    return;
+                }
+
+                onAddTransaction({
+                    ...form,
+                    type: transactionType,
+                    amount: parseFloat(form.amount)
+                });
+                
+                onClose();
+            }, [form, transactionType, onAddTransaction, onClose]);
+
+            if (!isOpen) return null;
+
+            const selectedCategory = categories.find(c => c.id === form.category);
+
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-6">
+                            <h2 className="text-2xl font-bold mb-4">
+                                {transactionType === 'income' ? '💰 Доход' : 
+                                 transactionType === 'expense' ? '💸 Расход' : '🔄 Перевод'}
+                            </h2>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Сумма (₸)</label>
+                                    <input
+                                        key="amount-input"
+                                        type="number"
+                                        inputMode="decimal"
+                                        value={localAmount}
+                                        onChange={(e) => handleAmountChange(e.target.value)}
+                                        onBlur={(e) => handleAmountChange(e.target.value)}
+                                        className="input-field number-input w-full"
+                                        placeholder="0"
+                                        autoFocus
+                                    />
+                                    
+                                    <div className="flex flex-wrap gap-2 mt-3">
+                                        {QUICK_AMOUNTS.map(amount => (
+                                            <button
+                                                key={amount}
+                                                onClick={() => handleQuickAmount(amount)}
+                                                className="quick-amount"
+                                            >
+                                                +{amount}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {transactionType !== 'transfer' && (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Категория</label>
+                                            <select
+                                                value={form.category}
+                                                onChange={(e) => setForm({...form, category: e.target.value, subcategory: ''})}
+                                                className="input-field w-full"
+                                            >
+                                                <option value="">Выберите категорию</option>
+                                                {categories
+                                                    .filter(c => c.type === transactionType)
+                                                    .map(cat => (
+                                                        <option key={cat.id} value={cat.id}>
+                                                            {cat.icon} {cat.name}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </div>
+
+                                        {selectedCategory?.subcategories && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Подкатегория</label>
+                                                <select
+                                                    value={form.subcategory}
+                                                    onChange={(e) => setForm({...form, subcategory: e.target.value})}
+                                                    className="input-field w-full"
+                                                >
+                                                    <option value="">Не указана</option>
+                                                    {selectedCategory.subcategories.map(sub => (
+                                                        <option key={sub.id} value={sub.id}>
+                                                            {sub.icon} {sub.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        {transactionType === 'transfer' ? 'Откуда' : 'Счёт'}
+                                    </label>
+                                    <select
+                                        value={form.account}
+                                        onChange={(e) => setForm({...form, account: e.target.value})}
+                                        className="input-field w-full"
+                                    >
+                                        <option value="">Выберите счёт</option>
+                                        {accounts.map(acc => (
+                                            <option key={acc.id} value={acc.id}>
+                                                {acc.icon} {acc.name} ({acc.balance.toLocaleString()}₸)
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {transactionType === 'transfer' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Куда</label>
+                                        <select
+                                            value={form.toAccount}
+                                            onChange={(e) => setForm({...form, toAccount: e.target.value})}
+                                            className="input-field w-full"
+                                        >
+                                            <option value="">Выберите счёт</option>
+                                            {accounts.filter(a => a.id !== form.account).map(acc => (
+                                                <option key={acc.id} value={acc.id}>
+                                                    {acc.icon} {acc.name} ({acc.balance.toLocaleString()}₸)
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Дата</label>
+                                    <input
+                                        type="date"
+                                        value={form.date}
+                                        onChange={(e) => setForm({...form, date: e.target.value})}
+                                        className="input-field w-full"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Заметка (опционально)</label>
+                                    <textarea
+                                        value={form.note}
+                                        onChange={(e) => setForm({...form, note: e.target.value})}
+                                        className="input-field w-full resize-none"
+                                        rows="3"
+                                        placeholder="Например: Купил в Магнуме"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <button onClick={handleSubmit} className="flex-1 btn-primary">
+                                    Добавить
+                                </button>
+                                <button
+                                    onClick={onClose}
+                                    className="flex-1 bg-gray-200 text-gray-700 py-3 px-6 rounded-xl font-semibold"
+                                >
+                                    Отмена
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        });
+
+        const DebtModal = memo(({ isOpen, onClose, onAddDebt }) => {
+            const [form, setForm] = useState({
+                type: 'owe',
+                person: '',
+                amount: '',
+                note: '',
+                date: new Date().toISOString().split('T')[0]
+            });
+            
+            const [localAmount, setLocalAmount] = useState('');
+
+            useEffect(() => {
+                if (isOpen) {
+                    setLocalAmount('');
+                    setForm({
+                        type: 'owe',
+                        person: '',
+                        amount: '',
+                        note: '',
+                        date: new Date().toISOString().split('T')[0]
+                    });
+                }
+            }, [isOpen]);
+
+            const handleAmountChange = useCallback((value) => {
+                setLocalAmount(value);
+                setForm(prev => ({ ...prev, amount: value }));
+            }, []);
+
+            const handleQuickAmount = useCallback((amount) => {
+                const newAmount = localAmount ? (parseFloat(localAmount) || 0) + amount : amount;
+                setLocalAmount(newAmount.toString());
+                setForm(prev => ({ ...prev, amount: newAmount.toString() }));
+            }, [localAmount]);
+
+            const handleSubmit = useCallback(() => {
+                if (!form.person.trim()) {
+                    alert('Укажите имя');
+                    return;
+                }
+
+                if (!form.amount || parseFloat(form.amount) <= 0) {
+                    alert('Укажите сумму');
+                    return;
+                }
+
+                onAddDebt({
+                    ...form,
+                    amount: parseFloat(form.amount)
+                });
+                
+                onClose();
+            }, [form, onAddDebt, onClose]);
+
+            if (!isOpen) return null;
+
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-6">
+                            <h2 className="text-2xl font-bold mb-4">📝 Добавить долг</h2>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Тип долга</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            onClick={() => setForm({...form, type: 'owe'})}
+                                            className={`py-3 px-4 rounded-xl font-semibold ${form.type === 'owe' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+                                        >
+                                            ❌ Я должен
+                                        </button>
+                                        <button
+                                            onClick={() => setForm({...form, type: 'lent'})}
+                                            className={`py-3 px-4 rounded-xl font-semibold ${form.type === 'lent' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+                                        >
+                                            ✅ Мне должны
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        {form.type === 'owe' ? 'Кому я должен' : 'Кто мне должен'}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={form.person}
+                                        onChange={(e) => setForm({...form, person: e.target.value})}
+                                        className="input-field w-full"
+                                        placeholder="Имя"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Сумма (₸)</label>
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        value={localAmount}
+                                        onChange={(e) => handleAmountChange(e.target.value)}
+                                        onBlur={(e) => handleAmountChange(e.target.value)}
+                                        className="input-field number-input w-full"
+                                        placeholder="0"
+                                    />
+                                    
+                                    <div className="flex flex-wrap gap-2 mt-3">
+                                        {QUICK_AMOUNTS.map(amount => (
+                                            <button
+                                                key={amount}
+                                                onClick={() => handleQuickAmount(amount)}
+                                                className="quick-amount"
+                                            >
+                                                +{amount}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Дата</label>
+                                    <input
+                                        type="date"
+                                        value={form.date}
+                                        onChange={(e) => setForm({...form, date: e.target.value})}
+                                        className="input-field w-full"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Заметка (опционально)</label>
+                                    <textarea
+                                        value={form.note}
+                                        onChange={(e) => setForm({...form, note: e.target.value})}
+                                        className="input-field w-full resize-none"
+                                        rows="3"
+                                        placeholder="За что долг..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <button onClick={handleSubmit} className="flex-1 btn-primary">
+                                    Добавить
+                                </button>
+                                <button
+                                    onClick={onClose}
+                                    className="flex-1 bg-gray-200 text-gray-700 py-3 px-6 rounded-xl font-semibold"
+                                >
+                                    Отмена
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        });
+
         function App() {
             const [activeTab, setActiveTab] = useState('home');
             const [categories, setCategories] = useState([]);
@@ -250,31 +690,6 @@
             const [filterAccount, setFilterAccount] = useState('all');
             const [filterMonth, setFilterMonth] = useState('current');
 
-            // Форма транзакции с локальным состоянием
-            const [txForm, setTxForm] = useState({
-                amount: '',
-                category: '',
-                subcategory: '',
-                account: '',
-                toAccount: '',
-                note: '',
-                date: new Date().toISOString().split('T')[0]
-            });
-
-            // Локальное состояние для поля суммы
-            const [localAmount, setLocalAmount] = useState('');
-
-            // Форма долга
-            const [debtForm, setDebtForm] = useState({
-                type: 'owe', // owe (я должен) или lent (мне должны)
-                person: '',
-                amount: '',
-                note: '',
-                date: new Date().toISOString().split('T')[0]
-            });
-
-            const [localDebtAmount, setLocalDebtAmount] = useState('');
-
             useEffect(() => {
                 const savedCategories = localStorage.getItem('financeApp_categories_v2');
                 const savedAccounts = localStorage.getItem('financeApp_accounts_v2');
@@ -287,150 +702,72 @@
                 setDebts(savedDebts ? JSON.parse(savedDebts) : []);
             }, []);
 
-            useEffect(() => {
-                if (categories.length > 0) localStorage.setItem('financeApp_categories_v2', JSON.stringify(categories));
-            }, [categories]);
+            const saveToLocalStorage = useCallback((key, data) => {
+                localStorage.setItem(key, JSON.stringify(data));
+            }, []);
 
             useEffect(() => {
-                if (accounts.length > 0) localStorage.setItem('financeApp_accounts_v2', JSON.stringify(accounts));
-            }, [accounts]);
-
+                if (categories.length > 0) saveToLocalStorage('financeApp_categories_v2', categories);
+            }, [categories, saveToLocalStorage]);
             useEffect(() => {
-                localStorage.setItem('financeApp_transactions_v2', JSON.stringify(transactions));
-            }, [transactions]);
-
+                if (accounts.length > 0) saveToLocalStorage('financeApp_accounts_v2', accounts);
+            }, [accounts, saveToLocalStorage]);
             useEffect(() => {
-                localStorage.setItem('financeApp_debts_v2', JSON.stringify(debts));
-            }, [debts]);
+                saveToLocalStorage('financeApp_transactions_v2', transactions);
+            }, [transactions, saveToLocalStorage]);
+            useEffect(() => {
+                saveToLocalStorage('financeApp_debts_v2', debts);
+            }, [debts, saveToLocalStorage]);
 
-            // Обработчик изменения суммы с локальным состоянием
-            const handleAmountChange = (value) => {
-                setLocalAmount(value);
-                setTxForm(prev => ({...prev, amount: value}));
-            };
-
-            const handleDebtAmountChange = (value) => {
-                setLocalDebtAmount(value);
-                setDebtForm(prev => ({...prev, amount: value}));
-            };
-
-            const addTransaction = () => {
-                if (!txForm.amount || parseFloat(txForm.amount) <= 0) {
-                    alert('Укажите сумму');
-                    return;
-                }
-
-                if (transactionType !== 'transfer' && !txForm.category) {
-                    alert('Выберите категорию');
-                    return;
-                }
-
-                if (!txForm.account) {
-                    alert('Выберите счёт');
-                    return;
-                }
-
-                if (transactionType === 'transfer' && !txForm.toAccount) {
-                    alert('Выберите счёт получателя');
-                    return;
-                }
-
-                if (transactionType === 'transfer' && txForm.account === txForm.toAccount) {
-                    alert('Выберите разные счета');
-                    return;
-                }
-
-                const amount = parseFloat(txForm.amount);
-                
+            const handleAddTransaction = useCallback((transactionData) => {
                 const transaction = {
                     id: Date.now(),
-                    type: transactionType,
-                    amount,
-                    category: txForm.category,
-                    subcategory: txForm.subcategory,
-                    account: txForm.account,
-                    toAccount: txForm.toAccount,
-                    note: txForm.note,
-                    date: txForm.date,
+                    ...transactionData,
                     timestamp: new Date().toISOString()
                 };
 
                 setAccounts(prev => prev.map(acc => {
-                    if (transactionType === 'income' && acc.id === txForm.account) {
-                        return { ...acc, balance: acc.balance + amount };
+                    if (transactionData.type === 'income' && acc.id === transactionData.account) {
+                        return { ...acc, balance: acc.balance + transactionData.amount };
                     }
-                    if (transactionType === 'expense' && acc.id === txForm.account) {
-                        return { ...acc, balance: acc.balance - amount };
+                    if (transactionData.type === 'expense' && acc.id === transactionData.account) {
+                        return { ...acc, balance: acc.balance - transactionData.amount };
                     }
-                    if (transactionType === 'transfer') {
-                        if (acc.id === txForm.account) {
-                            return { ...acc, balance: acc.balance - amount };
+                    if (transactionData.type === 'transfer') {
+                        if (acc.id === transactionData.account) {
+                            return { ...acc, balance: acc.balance - transactionData.amount };
                         }
-                        if (acc.id === txForm.toAccount) {
-                            return { ...acc, balance: acc.balance + amount };
+                        if (acc.id === transactionData.toAccount) {
+                            return { ...acc, balance: acc.balance + transactionData.amount };
                         }
                     }
                     return acc;
                 }));
 
                 setTransactions(prev => [transaction, ...prev]);
-                setShowAddTransaction(false);
-                setLocalAmount('');
-                setTxForm({
-                    amount: '',
-                    category: '',
-                    subcategory: '',
-                    account: '',
-                    toAccount: '',
-                    note: '',
-                    date: new Date().toISOString().split('T')[0]
-                });
-            };
+            }, []);
 
-            const addDebt = () => {
-                if (!debtForm.person.trim()) {
-                    alert('Укажите имя');
-                    return;
-                }
-
-                if (!debtForm.amount || parseFloat(debtForm.amount) <= 0) {
-                    alert('Укажите сумму');
-                    return;
-                }
-
+            const handleAddDebt = useCallback((debtData) => {
                 const debt = {
                     id: Date.now(),
-                    type: debtForm.type,
-                    person: debtForm.person,
-                    amount: parseFloat(debtForm.amount),
-                    note: debtForm.note,
-                    date: debtForm.date,
+                    ...debtData,
                     paid: false
                 };
 
                 setDebts(prev => [debt, ...prev]);
-                setShowAddDebt(false);
-                setLocalDebtAmount('');
-                setDebtForm({
-                    type: 'owe',
-                    person: '',
-                    amount: '',
-                    note: '',
-                    date: new Date().toISOString().split('T')[0]
-                });
-            };
+            }, []);
 
-            const markDebtPaid = (debtId) => {
+            const markDebtPaid = useCallback((debtId) => {
                 setDebts(prev => prev.map(d => 
                     d.id === debtId ? {...d, paid: true} : d
                 ));
-            };
+            }, []);
 
-            const deleteDebt = (debtId) => {
+            const deleteDebt = useCallback((debtId) => {
                 if (confirm('Удалить этот долг?')) {
                     setDebts(prev => prev.filter(d => d.id !== debtId));
                 }
-            };
+            }, []);
 
             const calculations = useMemo(() => {
                 const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
@@ -464,7 +801,6 @@
                         }
                     });
 
-                // Расчёт долгов
                 const activeDebts = debts.filter(d => !d.paid);
                 const totalOwe = activeDebts.filter(d => d.type === 'owe').reduce((sum, d) => sum + d.amount, 0);
                 const totalLent = activeDebts.filter(d => d.type === 'lent').reduce((sum, d) => sum + d.amount, 0);
@@ -528,242 +864,6 @@
                 return groups;
             }, [filteredTransactions]);
 
-            const TransactionModal = () => {
-                const selectedCategory = categories.find(c => c.id === txForm.category);
-
-                return (
-                    <div className="modal-overlay" onClick={() => setShowAddTransaction(false)}>
-                        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                            <div className="p-6">
-                                <h2 className="text-2xl font-bold mb-4">
-                                    {transactionType === 'income' ? '💰 Доход' : 
-                                     transactionType === 'expense' ? '💸 Расход' : '🔄 Перевод'}
-                                </h2>
-
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Сумма (₸)</label>
-                                        <input
-                                            type="number"
-                                            inputMode="decimal"
-                                            value={localAmount}
-                                            onChange={(e) => handleAmountChange(e.target.value)}
-                                            onBlur={(e) => handleAmountChange(e.target.value)}
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg font-semibold focus:border-blue-500 focus:outline-none"
-                                            placeholder="0"
-                                        />
-                                    </div>
-
-                                    {transactionType !== 'transfer' && (
-                                        <>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Категория</label>
-                                                <select
-                                                    value={txForm.category}
-                                                    onChange={(e) => setTxForm({...txForm, category: e.target.value, subcategory: ''})}
-                                                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                                >
-                                                    <option value="">Выберите категорию</option>
-                                                    {categories
-                                                        .filter(c => c.type === transactionType)
-                                                        .map(cat => (
-                                                            <option key={cat.id} value={cat.id}>
-                                                                {cat.icon} {cat.name}
-                                                            </option>
-                                                        ))}
-                                                </select>
-                                            </div>
-
-                                            {selectedCategory?.subcategories && (
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Подкатегория</label>
-                                                    <select
-                                                        value={txForm.subcategory}
-                                                        onChange={(e) => setTxForm({...txForm, subcategory: e.target.value})}
-                                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                                    >
-                                                        <option value="">Не указана</option>
-                                                        {selectedCategory.subcategories.map(sub => (
-                                                            <option key={sub.id} value={sub.id}>
-                                                                {sub.icon} {sub.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            )}
-                                        </>
-                                    )}
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            {transactionType === 'transfer' ? 'Откуда' : 'Счёт'}
-                                        </label>
-                                        <select
-                                            value={txForm.account}
-                                            onChange={(e) => setTxForm({...txForm, account: e.target.value})}
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                        >
-                                            <option value="">Выберите счёт</option>
-                                            {accounts.map(acc => (
-                                                <option key={acc.id} value={acc.id}>
-                                                    {acc.icon} {acc.name} ({acc.balance.toLocaleString()}₸)
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {transactionType === 'transfer' && (
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Куда</label>
-                                            <select
-                                                value={txForm.toAccount}
-                                                onChange={(e) => setTxForm({...txForm, toAccount: e.target.value})}
-                                                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                            >
-                                                <option value="">Выберите счёт</option>
-                                                {accounts.filter(a => a.id !== txForm.account).map(acc => (
-                                                    <option key={acc.id} value={acc.id}>
-                                                        {acc.icon} {acc.name} ({acc.balance.toLocaleString()}₸)
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    )}
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Дата</label>
-                                        <input
-                                            type="date"
-                                            value={txForm.date}
-                                            onChange={(e) => setTxForm({...txForm, date: e.target.value})}
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Заметка (опционально)</label>
-                                        <textarea
-                                            value={txForm.note}
-                                            onChange={(e) => setTxForm({...txForm, note: e.target.value})}
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none resize-none"
-                                            rows="3"
-                                            placeholder="Например: Купил в Магнуме"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-3 mt-6">
-                                    <button onClick={addTransaction} className="flex-1 btn-primary">
-                                        Добавить
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setShowAddTransaction(false);
-                                            setLocalAmount('');
-                                        }}
-                                        className="flex-1 bg-gray-200 text-gray-700 py-3 px-6 rounded-xl font-semibold"
-                                    >
-                                        Отмена
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
-            };
-
-            const DebtModal = () => (
-                <div className="modal-overlay" onClick={() => setShowAddDebt(false)}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                        <div className="p-6">
-                            <h2 className="text-2xl font-bold mb-4">📝 Добавить долг</h2>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Тип долга</label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button
-                                            onClick={() => setDebtForm({...debtForm, type: 'owe'})}
-                                            className={`py-3 px-4 rounded-xl font-semibold ${debtForm.type === 'owe' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-700'}`}
-                                        >
-                                            ❌ Я должен
-                                        </button>
-                                        <button
-                                            onClick={() => setDebtForm({...debtForm, type: 'lent'})}
-                                            className={`py-3 px-4 rounded-xl font-semibold ${debtForm.type === 'lent' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'}`}
-                                        >
-                                            ✅ Мне должны
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        {debtForm.type === 'owe' ? 'Кому я должен' : 'Кто мне должен'}
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={debtForm.person}
-                                        onChange={(e) => setDebtForm({...debtForm, person: e.target.value})}
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                        placeholder="Имя"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Сумма (₸)</label>
-                                    <input
-                                        type="number"
-                                        inputMode="decimal"
-                                        value={localDebtAmount}
-                                        onChange={(e) => handleDebtAmountChange(e.target.value)}
-                                        onBlur={(e) => handleDebtAmountChange(e.target.value)}
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg font-semibold focus:border-blue-500 focus:outline-none"
-                                        placeholder="0"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Дата</label>
-                                    <input
-                                        type="date"
-                                        value={debtForm.date}
-                                        onChange={(e) => setDebtForm({...debtForm, date: e.target.value})}
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Заметка (опционально)</label>
-                                    <textarea
-                                        value={debtForm.note}
-                                        onChange={(e) => setDebtForm({...debtForm, note: e.target.value})}
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none resize-none"
-                                        rows="3"
-                                        placeholder="За что долг..."
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3 mt-6">
-                                <button onClick={addDebt} className="flex-1 btn-primary">
-                                    Добавить
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setShowAddDebt(false);
-                                        setLocalDebtAmount('');
-                                    }}
-                                    className="flex-1 bg-gray-200 text-gray-700 py-3 px-6 rounded-xl font-semibold"
-                                >
-                                    Отмена
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-
             const DebtsTab = () => {
                 const activeDebts = debts.filter(d => !d.paid);
                 const paidDebts = debts.filter(d => d.paid);
@@ -772,7 +872,6 @@
                     <div className="p-4 pb-32">
                         <h2 className="text-2xl font-bold mb-4">📊 Долги</h2>
 
-                        {/* Сводка */}
                         <div className="grid grid-cols-2 gap-3 mb-6">
                             <div className="stat-card border-2 border-red-200">
                                 <p className="text-sm text-gray-600 mb-1">❌ Я должен</p>
@@ -791,7 +890,6 @@
                             </p>
                         </div>
 
-                        {/* Кнопка добавить */}
                         <button
                             onClick={() => setShowAddDebt(true)}
                             className="w-full btn-primary mb-6"
@@ -799,7 +897,6 @@
                             + Добавить долг
                         </button>
 
-                        {/* Активные долги */}
                         <h3 className="font-bold text-lg mb-3">Активные долги</h3>
                         {activeDebts.length > 0 ? (
                             <div className="space-y-3 mb-6">
@@ -840,7 +937,6 @@
                             <p className="text-center text-gray-400 py-8 mb-6">Нет активных долгов</p>
                         )}
 
-                        {/* Погашенные долги */}
                         {paidDebts.length > 0 && (
                             <>
                                 <h3 className="font-bold text-lg mb-3 text-gray-500">Погашенные долги</h3>
@@ -991,14 +1087,14 @@
                         placeholder="🔍 Поиск..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-4 focus:border-blue-500 focus:outline-none"
+                        className="input-field w-full mb-4"
                     />
 
                     <div className="grid grid-cols-3 gap-2 mb-4">
                         <select
                             value={filterCategory}
                             onChange={(e) => setFilterCategory(e.target.value)}
-                            className="px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-500 focus:outline-none"
+                            className="input-field text-sm"
                         >
                             <option value="all">Все категории</option>
                             {categories.map(cat => (
@@ -1009,7 +1105,7 @@
                         <select
                             value={filterAccount}
                             onChange={(e) => setFilterAccount(e.target.value)}
-                            className="px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-500 focus:outline-none"
+                            className="input-field text-sm"
                         >
                             <option value="all">Все счета</option>
                             {accounts.map(acc => (
@@ -1020,7 +1116,7 @@
                         <select
                             value={filterMonth}
                             onChange={(e) => setFilterMonth(e.target.value)}
-                            className="px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-500 focus:outline-none"
+                            className="input-field text-sm"
                         >
                             <option value="current">Этот месяц</option>
                             <option value="all">Всё время</option>
@@ -1110,7 +1206,8 @@
                                 {Object.entries(calculations.expensesByCategory)
                                     .sort((a, b) => b[1].amount - a[1].amount)
                                     .map(([name, data]) => {
-                                        const percentage = ((data.amount / calculations.monthExpenses) * 100).toFixed(0);
+                                        const percentage = calculations.monthExpenses > 0 ? 
+                                            ((data.amount / calculations.monthExpenses) * 100).toFixed(0) : 0;
                                         return (
                                             <div key={name}>
                                                 <div className="flex justify-between items-center mb-1">
@@ -1174,7 +1271,7 @@
                     </div>
 
                     <div className="mt-8 text-center text-sm text-gray-400">
-                        <p>💰 Мои Финансы v1.1</p>
+                        <p>💰 Мои Финансы v1.2</p>
                         <p className="mt-1">Все данные хранятся локально в вашем телефоне</p>
                     </div>
                 </div>
@@ -1226,8 +1323,20 @@
                     {activeTab === 'stats' && <StatsTab />}
                     {activeTab === 'settings' && <SettingsTab />}
 
-                    {showAddTransaction && <TransactionModal />}
-                    {showAddDebt && <DebtModal />}
+                    <TransactionModal
+                        isOpen={showAddTransaction}
+                        onClose={() => setShowAddTransaction(false)}
+                        categories={categories}
+                        accounts={accounts}
+                        transactionType={transactionType}
+                        onAddTransaction={handleAddTransaction}
+                    />
+
+                    <DebtModal
+                        isOpen={showAddDebt}
+                        onClose={() => setShowAddDebt(false)}
+                        onAddDebt={handleAddDebt}
+                    />
                 </div>
             );
         }
