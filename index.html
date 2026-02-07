@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1e40af">
-    <title>💰 Мои Финансы</title>
+    <title>💰 Мои Финансы v1.1</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -72,10 +72,10 @@
 
         .tab-button {
             flex: 1;
-            padding: 12px 8px;
+            padding: 12px 6px;
             font-weight: 600;
             transition: all 0.2s;
-            font-size: 13px;
+            font-size: 11px;
         }
 
         .tab-button.active {
@@ -133,25 +133,19 @@
             box-shadow: 0 4px 6px rgba(245, 158, 11, 0.3);
         }
 
-        .category-item {
-            background: white;
-            border: 2px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 8px;
-            transition: all 0.2s;
-        }
-
-        .category-item.selected {
-            border-color: #667eea;
-            background: #f0f4ff;
-        }
-
         .stat-card {
             background: white;
             border-radius: 16px;
             padding: 20px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .debt-card-owe {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+
+        .debt-card-lent {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
         }
     </style>
 </head>
@@ -161,7 +155,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // Начальные категории
         const INITIAL_CATEGORIES = [
             {
                 id: 'products',
@@ -234,7 +227,6 @@
             }
         ];
 
-        // Начальные счета
         const INITIAL_ACCOUNTS = [
             { id: 'cash', name: 'Наличные', icon: '💵', balance: 0, color: '#10b981' },
             { id: 'kaspi', name: 'Kaspi Bank', icon: '🔵', balance: 0, color: '#3b82f6' },
@@ -248,17 +240,17 @@
             const [categories, setCategories] = useState([]);
             const [accounts, setAccounts] = useState([]);
             const [transactions, setTransactions] = useState([]);
+            const [debts, setDebts] = useState([]);
             
-            // Модальные окна
             const [showAddTransaction, setShowAddTransaction] = useState(false);
-            const [transactionType, setTransactionType] = useState('expense'); // income, expense, transfer
-            const [showCategoryManager, setShowCategoryManager] = useState(false);
+            const [transactionType, setTransactionType] = useState('expense');
+            const [showAddDebt, setShowAddDebt] = useState(false);
             const [searchQuery, setSearchQuery] = useState('');
             const [filterCategory, setFilterCategory] = useState('all');
             const [filterAccount, setFilterAccount] = useState('all');
             const [filterMonth, setFilterMonth] = useState('current');
 
-            // Форма транзакции
+            // Форма транзакции с локальным состоянием
             const [txForm, setTxForm] = useState({
                 amount: '',
                 category: '',
@@ -269,35 +261,59 @@
                 date: new Date().toISOString().split('T')[0]
             });
 
-            // Загрузка данных
+            // Локальное состояние для поля суммы
+            const [localAmount, setLocalAmount] = useState('');
+
+            // Форма долга
+            const [debtForm, setDebtForm] = useState({
+                type: 'owe', // owe (я должен) или lent (мне должны)
+                person: '',
+                amount: '',
+                note: '',
+                date: new Date().toISOString().split('T')[0]
+            });
+
+            const [localDebtAmount, setLocalDebtAmount] = useState('');
+
             useEffect(() => {
-                const savedCategories = localStorage.getItem('financeApp_categories');
-                const savedAccounts = localStorage.getItem('financeApp_accounts');
-                const savedTransactions = localStorage.getItem('financeApp_transactions');
+                const savedCategories = localStorage.getItem('financeApp_categories_v2');
+                const savedAccounts = localStorage.getItem('financeApp_accounts_v2');
+                const savedTransactions = localStorage.getItem('financeApp_transactions_v2');
+                const savedDebts = localStorage.getItem('financeApp_debts_v2');
                 
                 setCategories(savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES);
                 setAccounts(savedAccounts ? JSON.parse(savedAccounts) : INITIAL_ACCOUNTS);
                 setTransactions(savedTransactions ? JSON.parse(savedTransactions) : []);
+                setDebts(savedDebts ? JSON.parse(savedDebts) : []);
             }, []);
 
-            // Сохранение данных
             useEffect(() => {
-                if (categories.length > 0) {
-                    localStorage.setItem('financeApp_categories', JSON.stringify(categories));
-                }
+                if (categories.length > 0) localStorage.setItem('financeApp_categories_v2', JSON.stringify(categories));
             }, [categories]);
 
             useEffect(() => {
-                if (accounts.length > 0) {
-                    localStorage.setItem('financeApp_accounts', JSON.stringify(accounts));
-                }
+                if (accounts.length > 0) localStorage.setItem('financeApp_accounts_v2', JSON.stringify(accounts));
             }, [accounts]);
 
             useEffect(() => {
-                localStorage.setItem('financeApp_transactions', JSON.stringify(transactions));
+                localStorage.setItem('financeApp_transactions_v2', JSON.stringify(transactions));
             }, [transactions]);
 
-            // Добавление транзакции
+            useEffect(() => {
+                localStorage.setItem('financeApp_debts_v2', JSON.stringify(debts));
+            }, [debts]);
+
+            // Обработчик изменения суммы с локальным состоянием
+            const handleAmountChange = (value) => {
+                setLocalAmount(value);
+                setTxForm(prev => ({...prev, amount: value}));
+            };
+
+            const handleDebtAmountChange = (value) => {
+                setLocalDebtAmount(value);
+                setDebtForm(prev => ({...prev, amount: value}));
+            };
+
             const addTransaction = () => {
                 if (!txForm.amount || parseFloat(txForm.amount) <= 0) {
                     alert('Укажите сумму');
@@ -326,7 +342,6 @@
 
                 const amount = parseFloat(txForm.amount);
                 
-                // Создаём транзакцию
                 const transaction = {
                     id: Date.now(),
                     type: transactionType,
@@ -340,7 +355,6 @@
                     timestamp: new Date().toISOString()
                 };
 
-                // Обновляем балансы
                 setAccounts(prev => prev.map(acc => {
                     if (transactionType === 'income' && acc.id === txForm.account) {
                         return { ...acc, balance: acc.balance + amount };
@@ -361,6 +375,7 @@
 
                 setTransactions(prev => [transaction, ...prev]);
                 setShowAddTransaction(false);
+                setLocalAmount('');
                 setTxForm({
                     amount: '',
                     category: '',
@@ -372,7 +387,51 @@
                 });
             };
 
-            // Расчёты
+            const addDebt = () => {
+                if (!debtForm.person.trim()) {
+                    alert('Укажите имя');
+                    return;
+                }
+
+                if (!debtForm.amount || parseFloat(debtForm.amount) <= 0) {
+                    alert('Укажите сумму');
+                    return;
+                }
+
+                const debt = {
+                    id: Date.now(),
+                    type: debtForm.type,
+                    person: debtForm.person,
+                    amount: parseFloat(debtForm.amount),
+                    note: debtForm.note,
+                    date: debtForm.date,
+                    paid: false
+                };
+
+                setDebts(prev => [debt, ...prev]);
+                setShowAddDebt(false);
+                setLocalDebtAmount('');
+                setDebtForm({
+                    type: 'owe',
+                    person: '',
+                    amount: '',
+                    note: '',
+                    date: new Date().toISOString().split('T')[0]
+                });
+            };
+
+            const markDebtPaid = (debtId) => {
+                setDebts(prev => prev.map(d => 
+                    d.id === debtId ? {...d, paid: true} : d
+                ));
+            };
+
+            const deleteDebt = (debtId) => {
+                if (confirm('Удалить этот долг?')) {
+                    setDebts(prev => prev.filter(d => d.id !== debtId));
+                }
+            };
+
             const calculations = useMemo(() => {
                 const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
                 
@@ -392,7 +451,6 @@
                     .filter(tx => tx.type === 'expense')
                     .reduce((sum, tx) => sum + tx.amount, 0);
 
-                // Расходы по категориям
                 const expensesByCategory = {};
                 monthTransactions
                     .filter(tx => tx.type === 'expense')
@@ -406,20 +464,27 @@
                         }
                     });
 
+                // Расчёт долгов
+                const activeDebts = debts.filter(d => !d.paid);
+                const totalOwe = activeDebts.filter(d => d.type === 'owe').reduce((sum, d) => sum + d.amount, 0);
+                const totalLent = activeDebts.filter(d => d.type === 'lent').reduce((sum, d) => sum + d.amount, 0);
+                const debtBalance = totalLent - totalOwe;
+
                 return {
                     totalBalance,
                     monthIncome,
                     monthExpenses,
                     monthBalance: monthIncome - monthExpenses,
-                    expensesByCategory
+                    expensesByCategory,
+                    totalOwe,
+                    totalLent,
+                    debtBalance
                 };
-            }, [accounts, transactions, categories]);
+            }, [accounts, transactions, categories, debts]);
 
-            // Фильтрация транзакций
             const filteredTransactions = useMemo(() => {
                 let result = [...transactions];
 
-                // Поиск
                 if (searchQuery) {
                     result = result.filter(tx => 
                         tx.note?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -427,17 +492,14 @@
                     );
                 }
 
-                // Категория
                 if (filterCategory !== 'all') {
                     result = result.filter(tx => tx.category === filterCategory);
                 }
 
-                // Счёт
                 if (filterAccount !== 'all') {
                     result = result.filter(tx => tx.account === filterAccount || tx.toAccount === filterAccount);
                 }
 
-                // Месяц
                 if (filterMonth === 'current') {
                     const currentMonth = new Date().getMonth();
                     const currentYear = new Date().getFullYear();
@@ -450,7 +512,6 @@
                 return result;
             }, [transactions, searchQuery, filterCategory, filterAccount, filterMonth, accounts]);
 
-            // Группировка по датам
             const groupedTransactions = useMemo(() => {
                 const groups = {};
                 filteredTransactions.forEach(tx => {
@@ -467,7 +528,6 @@
                 return groups;
             }, [filteredTransactions]);
 
-            // Компоненты
             const TransactionModal = () => {
                 const selectedCategory = categories.find(c => c.id === txForm.category);
 
@@ -481,19 +541,19 @@
                                 </h2>
 
                                 <div className="space-y-4">
-                                    {/* Сумма */}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Сумма (₸)</label>
                                         <input
                                             type="number"
-                                            value={txForm.amount}
-                                            onChange={(e) => setTxForm({...txForm, amount: e.target.value})}
+                                            inputMode="decimal"
+                                            value={localAmount}
+                                            onChange={(e) => handleAmountChange(e.target.value)}
+                                            onBlur={(e) => handleAmountChange(e.target.value)}
                                             className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg font-semibold focus:border-blue-500 focus:outline-none"
                                             placeholder="0"
                                         />
                                     </div>
 
-                                    {/* Категория */}
                                     {transactionType !== 'transfer' && (
                                         <>
                                             <div>
@@ -514,7 +574,6 @@
                                                 </select>
                                             </div>
 
-                                            {/* Подкатегория */}
                                             {selectedCategory?.subcategories && (
                                                 <div>
                                                     <label className="block text-sm font-medium text-gray-700 mb-2">Подкатегория</label>
@@ -535,7 +594,6 @@
                                         </>
                                     )}
 
-                                    {/* Счёт */}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">
                                             {transactionType === 'transfer' ? 'Откуда' : 'Счёт'}
@@ -554,7 +612,6 @@
                                         </select>
                                     </div>
 
-                                    {/* Счёт получателя (для перевода) */}
                                     {transactionType === 'transfer' && (
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Куда</label>
@@ -573,7 +630,6 @@
                                         </div>
                                     )}
 
-                                    {/* Дата */}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Дата</label>
                                         <input
@@ -584,7 +640,6 @@
                                         />
                                     </div>
 
-                                    {/* Заметка */}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Заметка (опционально)</label>
                                         <textarea
@@ -598,14 +653,14 @@
                                 </div>
 
                                 <div className="flex gap-3 mt-6">
-                                    <button
-                                        onClick={addTransaction}
-                                        className="flex-1 btn-primary"
-                                    >
+                                    <button onClick={addTransaction} className="flex-1 btn-primary">
                                         Добавить
                                     </button>
                                     <button
-                                        onClick={() => setShowAddTransaction(false)}
+                                        onClick={() => {
+                                            setShowAddTransaction(false);
+                                            setLocalAmount('');
+                                        }}
                                         className="flex-1 bg-gray-200 text-gray-700 py-3 px-6 rounded-xl font-semibold"
                                     >
                                         Отмена
@@ -617,15 +672,209 @@
                 );
             };
 
+            const DebtModal = () => (
+                <div className="modal-overlay" onClick={() => setShowAddDebt(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-6">
+                            <h2 className="text-2xl font-bold mb-4">📝 Добавить долг</h2>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Тип долга</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            onClick={() => setDebtForm({...debtForm, type: 'owe'})}
+                                            className={`py-3 px-4 rounded-xl font-semibold ${debtForm.type === 'owe' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+                                        >
+                                            ❌ Я должен
+                                        </button>
+                                        <button
+                                            onClick={() => setDebtForm({...debtForm, type: 'lent'})}
+                                            className={`py-3 px-4 rounded-xl font-semibold ${debtForm.type === 'lent' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+                                        >
+                                            ✅ Мне должны
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        {debtForm.type === 'owe' ? 'Кому я должен' : 'Кто мне должен'}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={debtForm.person}
+                                        onChange={(e) => setDebtForm({...debtForm, person: e.target.value})}
+                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                                        placeholder="Имя"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Сумма (₸)</label>
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        value={localDebtAmount}
+                                        onChange={(e) => handleDebtAmountChange(e.target.value)}
+                                        onBlur={(e) => handleDebtAmountChange(e.target.value)}
+                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg font-semibold focus:border-blue-500 focus:outline-none"
+                                        placeholder="0"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Дата</label>
+                                    <input
+                                        type="date"
+                                        value={debtForm.date}
+                                        onChange={(e) => setDebtForm({...debtForm, date: e.target.value})}
+                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Заметка (опционально)</label>
+                                    <textarea
+                                        value={debtForm.note}
+                                        onChange={(e) => setDebtForm({...debtForm, note: e.target.value})}
+                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none resize-none"
+                                        rows="3"
+                                        placeholder="За что долг..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <button onClick={addDebt} className="flex-1 btn-primary">
+                                    Добавить
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowAddDebt(false);
+                                        setLocalDebtAmount('');
+                                    }}
+                                    className="flex-1 bg-gray-200 text-gray-700 py-3 px-6 rounded-xl font-semibold"
+                                >
+                                    Отмена
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const DebtsTab = () => {
+                const activeDebts = debts.filter(d => !d.paid);
+                const paidDebts = debts.filter(d => d.paid);
+
+                return (
+                    <div className="p-4 pb-32">
+                        <h2 className="text-2xl font-bold mb-4">📊 Долги</h2>
+
+                        {/* Сводка */}
+                        <div className="grid grid-cols-2 gap-3 mb-6">
+                            <div className="stat-card border-2 border-red-200">
+                                <p className="text-sm text-gray-600 mb-1">❌ Я должен</p>
+                                <p className="text-2xl font-bold text-red-600">{calculations.totalOwe.toLocaleString()} ₸</p>
+                            </div>
+                            <div className="stat-card border-2 border-green-200">
+                                <p className="text-sm text-gray-600 mb-1">✅ Мне должны</p>
+                                <p className="text-2xl font-bold text-green-600">{calculations.totalLent.toLocaleString()} ₸</p>
+                            </div>
+                        </div>
+
+                        <div className="stat-card mb-6">
+                            <p className="text-sm text-gray-600 mb-1">Итоговый баланс долгов</p>
+                            <p className={`text-3xl font-bold ${calculations.debtBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {calculations.debtBalance >= 0 ? '+' : ''}{calculations.debtBalance.toLocaleString()} ₸
+                            </p>
+                        </div>
+
+                        {/* Кнопка добавить */}
+                        <button
+                            onClick={() => setShowAddDebt(true)}
+                            className="w-full btn-primary mb-6"
+                        >
+                            + Добавить долг
+                        </button>
+
+                        {/* Активные долги */}
+                        <h3 className="font-bold text-lg mb-3">Активные долги</h3>
+                        {activeDebts.length > 0 ? (
+                            <div className="space-y-3 mb-6">
+                                {activeDebts.map(debt => (
+                                    <div key={debt.id} className={`transaction-card ${debt.type === 'owe' ? 'border-l-4 border-red-500' : 'border-l-4 border-green-500'}`}>
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="flex-1">
+                                                <p className="font-semibold text-gray-800">
+                                                    {debt.type === 'owe' ? '❌' : '✅'} {debt.person}
+                                                </p>
+                                                {debt.note && <p className="text-sm text-gray-500 mt-1">"{debt.note}"</p>}
+                                                <p className="text-xs text-gray-400 mt-1">
+                                                    {new Date(debt.date).toLocaleDateString('ru-RU')}
+                                                </p>
+                                            </div>
+                                            <p className={`text-xl font-bold ${debt.type === 'owe' ? 'text-red-600' : 'text-green-600'}`}>
+                                                {debt.amount.toLocaleString()} ₸
+                                            </p>
+                                        </div>
+                                        <div className="flex gap-2 mt-3">
+                                            <button
+                                                onClick={() => markDebtPaid(debt.id)}
+                                                className="flex-1 bg-green-500 text-white py-2 px-4 rounded-lg text-sm font-semibold"
+                                            >
+                                                ✓ Погашено
+                                            </button>
+                                            <button
+                                                onClick={() => deleteDebt(debt.id)}
+                                                className="bg-red-500 text-white py-2 px-4 rounded-lg text-sm font-semibold"
+                                            >
+                                                Удалить
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-center text-gray-400 py-8 mb-6">Нет активных долгов</p>
+                        )}
+
+                        {/* Погашенные долги */}
+                        {paidDebts.length > 0 && (
+                            <>
+                                <h3 className="font-bold text-lg mb-3 text-gray-500">Погашенные долги</h3>
+                                <div className="space-y-3">
+                                    {paidDebts.map(debt => (
+                                        <div key={debt.id} className="transaction-card opacity-50">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <p className="font-semibold text-gray-800">
+                                                        {debt.type === 'owe' ? '❌' : '✅'} {debt.person}
+                                                    </p>
+                                                    {debt.note && <p className="text-sm text-gray-500 mt-1">"{debt.note}"</p>}
+                                                    <p className="text-xs text-green-600 mt-1 font-semibold">✓ Погашено</p>
+                                                </div>
+                                                <p className="text-xl font-bold text-gray-400 line-through">
+                                                    {debt.amount.toLocaleString()} ₸
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                );
+            };
+
             const HomeTab = () => (
                 <div className="p-4 pb-32">
-                    {/* Общий баланс */}
                     <div className="account-card mb-6">
                         <p className="text-sm opacity-90 mb-1">Общий баланс</p>
                         <p className="text-4xl font-bold">{calculations.totalBalance.toLocaleString()} ₸</p>
                     </div>
 
-                    {/* Месячная статистика */}
                     <div className="bg-white rounded-xl p-4 mb-6 shadow-sm">
                         <h3 className="font-semibold text-gray-700 mb-3">Этот месяц</h3>
                         <div className="space-y-2">
@@ -648,7 +897,6 @@
                         </div>
                     </div>
 
-                    {/* Счета */}
                     <h3 className="font-bold text-lg mb-3 text-gray-800">Мои счета</h3>
                     <div className="space-y-3 mb-6">
                         {accounts.map(acc => (
@@ -666,7 +914,6 @@
                         ))}
                     </div>
 
-                    {/* Кнопки действий */}
                     <div className="grid grid-cols-3 gap-3 mb-6">
                         <button
                             onClick={() => {
@@ -700,7 +947,6 @@
                         </button>
                     </div>
 
-                    {/* Последние операции */}
                     <h3 className="font-bold text-lg mb-3 text-gray-800">Последние операции</h3>
                     {transactions.slice(0, 5).map(tx => {
                         const cat = categories.find(c => c.id === tx.category);
@@ -740,7 +986,6 @@
 
             const HistoryTab = () => (
                 <div className="p-4 pb-32">
-                    {/* Поиск */}
                     <input
                         type="text"
                         placeholder="🔍 Поиск..."
@@ -749,7 +994,6 @@
                         className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-4 focus:border-blue-500 focus:outline-none"
                     />
 
-                    {/* Фильтры */}
                     <div className="grid grid-cols-3 gap-2 mb-4">
                         <select
                             value={filterCategory}
@@ -783,7 +1027,6 @@
                         </select>
                     </div>
 
-                    {/* Список операций */}
                     {Object.entries(groupedTransactions).map(([date, txs]) => (
                         <div key={date} className="mb-6">
                             <p className="text-sm font-semibold text-gray-500 mb-2">{date}</p>
@@ -918,6 +1161,7 @@
                                     setAccounts(INITIAL_ACCOUNTS);
                                     setTransactions([]);
                                     setCategories(INITIAL_CATEGORIES);
+                                    setDebts([]);
                                 }
                             }}
                             className="w-full bg-white rounded-xl p-4 shadow-sm text-left flex items-center justify-between border-2 border-red-200"
@@ -930,7 +1174,7 @@
                     </div>
 
                     <div className="mt-8 text-center text-sm text-gray-400">
-                        <p>💰 Мои Финансы v1.0</p>
+                        <p>💰 Мои Финансы v1.1</p>
                         <p className="mt-1">Все данные хранятся локально в вашем телефоне</p>
                     </div>
                 </div>
@@ -938,18 +1182,22 @@
 
             return (
                 <div className="min-h-screen bg-gray-50">
-                    {/* Шапка */}
                     <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white sticky top-0 z-10 shadow-lg">
                         <h1 className="text-2xl font-bold text-center pt-4 px-4">💰 Мои Финансы</h1>
                         <p className="text-center text-sm opacity-90 pb-3">Учёт доходов и расходов</p>
                         
-                        {/* Табы */}
                         <div className="flex bg-blue-700 text-white">
                             <button
                                 onClick={() => setActiveTab('home')}
                                 className={`tab-button ${activeTab === 'home' ? 'active bg-gray-50' : ''}`}
                             >
                                 🏠 Главная
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('debts')}
+                                className={`tab-button ${activeTab === 'debts' ? 'active bg-gray-50' : ''}`}
+                            >
+                                📝 Долги
                             </button>
                             <button
                                 onClick={() => setActiveTab('history')}
@@ -972,14 +1220,14 @@
                         </div>
                     </div>
 
-                    {/* Контент */}
                     {activeTab === 'home' && <HomeTab />}
+                    {activeTab === 'debts' && <DebtsTab />}
                     {activeTab === 'history' && <HistoryTab />}
                     {activeTab === 'stats' && <StatsTab />}
                     {activeTab === 'settings' && <SettingsTab />}
 
-                    {/* Модальные окна */}
                     {showAddTransaction && <TransactionModal />}
+                    {showAddDebt && <DebtModal />}
                 </div>
             );
         }
